@@ -1,0 +1,144 @@
+WITH paywall AS (
+    SELECT
+        data_event_eventattribute_AID AS AID,
+        DATE(dateTIME(TIMESTAMP_MILLIS(`temp_dataset.event_log_parquet`.event_timestamp_unix), "Asia/Kolkata")) AS event_date,
+        SUM(CASE WHEN data_event_type = "PaywallDisplayed" THEN 1 ELSE 0 END) AS PaywallDisplayed,
+        SUM(CASE WHEN data_event_type = "paywall-clicked" THEN 1 ELSE 0 END) AS Paywall_Clicked
+    FROM
+        `temp_dataset.event_log_parquet`
+    WHERE
+        (data_event_type = 'PaywallDisplayed' OR data_event_type = 'paywall-clicked') AND
+        DATE(dateTIME(TIMESTAMP_MILLIS(`temp_dataset.event_log_parquet`.event_timestamp_unix), "Asia/Kolkata")) between "2023-04-01" and "2023-12-31"
+    GROUP BY
+        AID,
+        event_date
+), 
+
+content_per AS (
+    SELECT
+        article_id,
+        DATE(event_date) AS event_date,COUNT(CookieID) AS PageViews,
+        SUM(CASE WHEN country_name IN ('India') THEN 1 ELSE 0 END) AS India,
+        SUM(CASE WHEN country_name IN ('Singapore', 'Sri Lanka', 'Maldives', 'Bangladesh', 'Brunei', 'Cambodia', 'Indonesia', 'Laos', 'Malaysia', 'Myanmar', 'Philippines', 'Thailand', 'Timor-Leste', 'Vietnam', 'Kazakhstan', 'Russia', 'China', 'Hong Kong', 'Macau', 'Bhutan', 'British Indian Ocean Territory', 'Pakistan') THEN 1 ELSE 0 END) AS Asia,
+        SUM(CASE WHEN country_name IN ('United States', 'Canada', 'Mexico', 'Greenland', 'Jamaica', 'Bahamas', 'Cuba', 'Bermuda', 'Cayman Islands ', 'Puerto Rico', 'Turks and Caicos Islands', 'Anguilla', 'British Virgin Islands') THEN 1 ELSE 0 END) AS North_America,
+        SUM(CASE WHEN country_name IN ('United Arab Emirates', 'Saudi Arabia', 'Qatar', 'Oman', 'Kuwait', 'Bahrain', 'Iraq', 'Jordan', 'Lebanon', 'Cyprus', 'Syria', 'Yemen', 'Turkey', 'Palestine', 'Israel', 'Egypt', 'Iran') THEN 1 ELSE 0 END) AS Middle_East,
+        SUM(CASE WHEN country_name IN ('Australia') THEN 1 ELSE 0 END) AS Australia,
+        SUM(CASE WHEN country_name IN ('Netherlands', 'Switzerland', 'Norway', 'Ireland', 'New Zealand', 'Sweden', 'Denmark', 'Belgium', 'Finland', 'Germany', 'United Kingdom', 'France', 'Italy', 'Spain', 'Portugal', 'Greece', 'Poland', 'Hungary', 'Czechia', 'Slovakia', 'Austria', 'Luxembourg', 'Malta', 'Romania', 'Bulgaria', 'Latvia', 'Estonia', 'Lithuania', 'Slovenia', 'Croatia', 'Åland Islands', 'Faroe Islands') THEN 1 ELSE 0 END) AS Europe,
+        SUM(CASE WHEN country_name IN ('Nigeria', 'Kenya', 'South Africa', 'Algeria', 'Morocco', 'Angola', 'Ghana', 'Uganda', 'Tanzania', 'Ethiopia', 'Rwanda', 'Cameroon', 'Zambia', 'Zimbabwe', 'Tunisia', 'Senegal', 'Ivory Coast', 'Madagascar', 'Mauritius', 'Mozambique', 'Libya', 'Gabon', 'Botswana', 'Burkina Faso', 'Mali', 'Sudan', 'Niger', 'Malawi', 'Togo', 'Benin', 'Eswatini', 'Sierra Leone', 'Guinea', 'Liberia', 'Namibia', 'Mauritania', 'Lesotho', 'Central African Republic', 'Congo Republic', 'DR Congo', 'Gambia', 'Chad', 'Somalia', 'Guinea-Bissau', 'São Tomé and Príncipe', 'Comoros', 'Djibouti', 'Seychelles', 'Cabo Verde') THEN 1 ELSE 0 END) AS Africa,
+        SUM(CASE WHEN (country_name IS NULL OR country_name = 'NA') THEN 1 ELSE 0 END) AS Missing,
+        SUM(CASE WHEN country_name NOT IN ('India', 'Singapore', 'Sri Lanka', 'Maldives', 'Bangladesh', 'Brunei', 'Cambodia', 'Indonesia', 'Laos', 'Malaysia', 'Myanmar', 'Philippines', 'Thailand', 'Timor-Leste', 'Vietnam', 'Kazakhstan', 'Russia', 'China', 'Hong Kong', 'Macau', 'Bhutan', 'British Indian Ocean Territory', 'Pakistan', 'United States', 'Canada', 'Mexico', 'Greenland', 'Jamaica', 'Bahamas', 'Cuba', 'Bermuda', 'Cayman Islands ', 'Puerto Rico', 'Turks and Caicos Islands', 'Anguilla', 'British Virgin Islands', 'United Arab Emirates', 'Saudi Arabia', 'Qatar', 'Oman', 'Kuwait', 'Bahrain', 'Iraq', 'Jordan', 'Lebanon', 'Cyprus', 'Syria', 'Yemen', 'Turkey', 'Palestine', 'Israel', 'Egypt', 'Iran', 'Australia', 'Netherlands', 'Switzerland', 'Norway', 'Ireland', 'New Zealand', 'Sweden', 'Denmark', 'Belgium', 'Finland', 'Germany', 'United Kingdom', 'France', 'Italy', 'Spain', 'Portugal', 'Greece', 'Poland', 'Hungary', 'Czechia', 'Slovakia', 'Austria', 'Luxembourg', 'Malta', 'Romania', 'Bulgaria', 'Latvia', 'Estonia', 'Lithuania', 'Cyprus', 'Slovenia', 'Croatia', 'Åland Islands', 'Faroe Islands', 'Nigeria', 'Egypt', 'Kenya', 'South Africa', 'Algeria', 'Morocco', 'Angola', 'Ghana', 'Uganda', 'Tanzania', 'Ethiopia', 'Rwanda', 'Cameroon', 'Zambia', 'Zimbabwe', 'Tunisia', 'Senegal', 'Ivory Coast', 'Madagascar', 'Mauritius', 'Mozambique', 'Libya', 'Gabon', 'Botswana', 'Burkina Faso', 'Mali', 'Sudan', 'Niger', 'Malawi', 'Togo', 'Benin', 'Eswatini', 'Sierra Leone', 'Guinea', 'Liberia', 'Namibia', 'Mauritania', 'Lesotho', 'Central African Republic', 'Congo Republic', 'DR Congo', 'Gambia', 'Chad', 'Somalia', 'Guinea-Bissau', 'São Tomé and Príncipe', 'Comoros', 'Djibouti', 'Seychelles', 'Cabo Verde') AND country_name IS NOT NULL AND country_name <> "NA" THEN 1 ELSE 0 END) AS Other_Continent,
+        SUM(CASE WHEN referrer_group IN ("direct", "vikatan") AND LOWER(source) = "web" THEN 1 ELSE 0 END) AS Direct_Web,
+        SUM(CASE WHEN referrer_group = "facebook" THEN 1 ELSE 0 END) AS Facebook,
+        SUM(CASE WHEN LOWER(source) = "app" THEN 1 ELSE 0 END) AS App,
+        SUM(CASE WHEN referrer_group IN ("discover", "Android Search Box") AND LOWER(source) = "web" THEN 1 ELSE 0 END) AS Discover_web,
+        SUM(CASE WHEN referrer_group IN ("discover", "Android Search Box") AND LOWER(source) = "amp" THEN 1 ELSE 0 END) AS Discover_amp,
+        SUM(CASE WHEN referrer_group IN ("google") AND LOWER(source) = "web" THEN 1 ELSE 0 END) AS Google_web,
+        SUM(CASE WHEN referrer_group IN ("google") AND LOWER(source) = "amp" THEN 1 ELSE 0 END) AS Google_amp,
+        SUM(CASE WHEN referrer_group IN ("ampproject") AND LOWER(source) = "web" THEN 1 ELSE 0 END) AS AmpProject_web,
+        SUM(CASE WHEN referrer_group IN ("ampproject") AND LOWER(source) = "amp" THEN 1 ELSE 0 END) AS AmpProject_amp,
+        SUM(CASE WHEN referrer_group IN ("direct", "vikatan") AND LOWER(source) = "amp" THEN 1 ELSE 0 END) AS Direct_amp,
+        SUM(CASE WHEN (referrer_group <> "Android Search Box" AND referrer_group <> "vikatan" AND referrer_group <> "direct" AND referrer_group <> "google" AND referrer_group <> "facebook" AND referrer_group <> "discover" AND LOWER(source) <> "app" AND referrer_group <> "ampproject") THEN 1 ELSE 0 END) AS Others
+    FROM
+        `vikatandata.temp_dataset.article_performance_v2`
+    WHERE
+        DATE(event_date) between "2023-04-01" and "2023-12-31" AND
+        CookieID IS NOT NULL AND 
+        DATE(published_at) >= "2023-01-01" AND
+        (theme = "Junior Vikatan" OR theme = "Ananda Vikatan" OR theme = "Aval Vikatan" OR theme = "Nanayam Vikatan" OR theme = "Pasumai Vikatan" OR theme = "Sakthi Vikatan" OR theme = "Motor Vikatan" OR theme = "Freelancers") AND
+        (story_type <> "" AND story_type IS NOT NULL)
+    GROUP BY
+        article_id,
+        event_date
+),
+
+payment AS (
+    SELECT
+        data_event_eventattribute_AID AS AID,
+        DATE(dateTIME(TIMESTAMP_MILLIS(`temp_dataset.event_log_parquet`.event_timestamp_unix), "Asia/Kolkata")) AS event_date,
+        COUNT(DISTINCT data_event_eventattribute_OrderID) AS Count,
+        SUM(CAST(data_event_eventattribute_Amount AS Float64)) AS Amount
+    FROM
+        `temp_dataset.event_log_parquet`
+    WHERE
+        (data_event_type = 'PaymentConfirmation' OR data_event_type = 'AndroidPaymentConfirmation' OR data_event_type = 'AppPaymentConfirmation') AND
+        (LOWER(data_event_eventattribute_UtmSource) = 'paywall' OR LOWER(data_event_eventattribute_UtmCampaign) = 'special_pack_29' OR LOWER(data_event_eventattribute_UtmSource) = 'Paywall_experiment' OR LOWER(data_event_eventattribute_UtmCampaign) = 'paywall') AND
+        data_event_eventattribute_Status = 'success' AND
+        data_event_eventattribute_ProductType = 'Subscription' AND
+        data_event_eventattribute_Amount IS NOT NULL  and DATE(dateTIME(TIMESTAMP_MILLIS(`temp_dataset.event_log_parquet`.event_timestamp_unix), "Asia/Kolkata")) between "2023-04-01" and "2023-12-31"
+    GROUP BY
+        AID,
+        event_date
+),
+
+content AS (
+    SELECT
+        DATE(published_at) AS published_at,
+        cluster,
+        theme,
+        news_needs,
+        headline,
+        section,
+        subsection,
+        content_type,
+        story_type,
+        article_type,
+        author,
+        article_id,
+        magazine
+    FROM
+        `vikatandata.editorial.article_published_view`
+)
+
+SELECT
+    a.article_id AS AID,
+    a.event_date,
+    d.published_at AS published_at,
+    d.magazine AS Magazine,
+    d.cluster,
+    d.theme,
+    d.news_needs,
+    d.headline,
+    d.section,
+    d.subsection,
+    d.content_type,
+    d.story_type,
+    d.article_type,
+    d.author,
+    a.PageViews,
+    a.Direct_web,
+    a.Direct_amp,
+    a.Google_web,
+    a.Google_amp,
+    a.Facebook,
+    a.App,
+    a.Discover_web,
+    a.Discover_amp,
+    a.AmpProject_web,
+    a.AmpProject_amp,
+    a.Others,
+    IFNULL(c.PaywallDisplayed, 0) AS PaywallDisplayed,
+    IFNULL(c.Paywall_Clicked, 0) AS Paywall_Clicked,
+    IFNULL(b.Count, 0) AS Conversion,
+    IFNULL(b.Amount, 0) AS Amount,
+    a.India,
+    a.Asia,
+    a.North_America,
+    a.Middle_East,
+    a.Europe,
+    a.Africa,
+    a.Australia,
+    a.Missing,
+    a.Other_Continent
+FROM
+    content_per a
+INNER JOIN
+    content d ON a.article_id = d.article_id
+LEFT JOIN
+    payment b ON a.article_id = b.AID AND a.event_date = b.event_date
+LEFT JOIN
+    paywall c ON a.article_id = c.AID AND a.event_date = c.event_date
+WHERE
+    a.article_id IS NOT NULL AND
+    a.PageViews IS NOT NULL and a.event_date between "2023-04-01" and "2023-12-31"
+ORDER BY
+    published_at;
